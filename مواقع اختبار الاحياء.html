@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="h-full bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>المساعد الدراسي - اختبارات أوراق العمل</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts - Cairo -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <!-- PDF.js for extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { fontFamily: 'Cairo', sans-serif; }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-modal {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="h-full flex flex-col min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-30 backdrop-blur">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="app.navigateToHome()">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid font-bold fa-book-open text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-white leading-tight">اختبارات أوراق العمل</h1>
+                    <p class="text-xs text-slate-400">منظّم ومُولد الاختبارات الذكي للمذاكرة</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button onclick="app.openApiKeyModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">
+                    <i class="fa-solid fa-key text-amber-400"></i>
+                    <span id="api-status-text">إعداد مفتاح Gemini API</span>
+                </button>
+                <button onclick="app.openUploadModal()" class="flex items-center gap-2 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold text-sm px-4 py-2 rounded-xl shadow-md transition transform active:scale-95">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>إضافة مستند جديد</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Breadcrumb / Status bar -->
+        <nav id="breadcrumb" class="flex items-center gap-2 text-sm text-slate-400 mb-6 hidden">
+            <button onclick="app.navigateToHome()" class="hover:text-brand-400 flex items-center gap-1">
+                <i class="fa-solid fa-house text-xs"></i>
+                <span>الرئيسية (المجلدات)</span>
+            </button>
+            <i class="fa-solid fa-chevron-left text-xs text-slate-600"></i>
+            <span id="breadcrumb-current" class="text-slate-200 font-semibold">اسم المستند</span>
+        </nav>
+
+        <!-- Dynamic Content Area -->
+        <div id="content-area">
+            <!-- Will be populated dynamically via JavaScript -->
+        </div>
+
+    </main>
+
+    <!-- 1. Upload & Text Input Modal -->
+    <div id="upload-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 glass-modal hidden">
+        <div class="glass-card bg-slate-900 border border-slate-700/60 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="app.closeUploadModal()" class="absolute top-4 left-4 text-slate-400 hover:text-white p-2">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <h2 class="text-xl font-bold mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-folder-plus text-brand-400"></i>
+                <span>إضافة مستند / أوراق عمل جديدة</span>
+            </h2>
+            <p class="text-slate-400 text-sm mb-6">سيتم تقسيم كل ورقة عمل إلى اختبار مستقل تماماً وبدقة عالية من النص نفسه.</p>
+
+            <!-- File Upload Zone -->
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-slate-300 mb-2">اسم المادة / المجلد</label>
+                <input type="text" id="document-title" placeholder="مثال: ورقة عمل أحياء - الفصل الثالث" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 focus:outline-none focus:border-brand-500 mb-4">
+
+                <!-- Tabs for upload mode -->
+                <div class="flex border-b border-slate-800 mb-4">
+                    <button id="tab-btn-file" onclick="app.switchUploadTab('file')" class="px-4 py-2 text-sm font-bold border-b-2 border-brand-500 text-brand-400">رفع ملف (PDF / نص)</button>
+                    <button id="tab-btn-text" onclick="app.switchUploadTab('text')" class="px-4 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200">لصق النص يدويّاً</button>
+                </div>
+
+                <!-- Tab 1: File Drop -->
+                <div id="tab-content-file" class="block">
+                    <div id="drop-zone" onclick="document.getElementById('file-input').click()" class="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-2xl p-8 text-center cursor-pointer transition bg-slate-950/40 hover:bg-slate-950/80 group">
+                        <input type="file" id="file-input" accept=".pdf,.txt" class="hidden" onchange="app.handleFileSelect(event)">
+                        <div class="w-14 h-14 rounded-full bg-slate-800 group-hover:bg-brand-900/50 text-brand-400 flex items-center justify-center mx-auto mb-3 transition">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                        </div>
+                        <p class="font-semibold text-slate-200 mb-1">اضغط هنا لرفع الملف أو اسحبه إلى هنا</p>
+                        <p class="text-xs text-slate-400">يدعم ملفات PDF و Text (.txt)</p>
+                        <p id="selected-file-name" class="mt-3 text-sm font-bold text-brand-400 hidden"></p>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Direct Text Input -->
+                <div id="tab-content-text" class="hidden space-y-3">
+                    <p class="text-xs text-slate-400">يمكنك فصل كل ورقة عمل بعلامة <code class="bg-slate-800 px-1 py-0.5 rounded text-amber-300">---</code> في السطر بين الأوراق، أو سيتم اعتباره ورقة عمل واحدة.</p>
+                    <textarea id="raw-text-input" rows="8" placeholder="أدخل نص ورقة العمل هنا..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-slate-100 text-sm focus:outline-none focus:border-brand-500"></textarea>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button onclick="app.closeUploadModal()" class="px-4 py-2 text-slate-400 hover:text-slate-200 text-sm font-semibold">إلغاء</button>
+                <button onclick="app.processDocumentUpload()" id="btn-process-doc" class="flex items-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-semibold px-6 py-2 rounded-xl text-sm transition">
+                    <i class="fa-solid fa-microchip"></i>
+                    <span>معالجة وتوليد الاختبارات</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. API Key Configuration Modal -->
+    <div id="apikey-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 glass-modal hidden">
+        <div class="glass-card bg-slate-900 border border-slate-700/60 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onclick="app.closeApiKeyModal()" class="absolute top-4 left-4 text-slate-400 hover:text-white p-2">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <h2 class="text-lg font-bold mb-2 flex items-center gap-2">
+                <i class="fa-solid fa-key text-amber-400"></i>
+                <span>مفتاح Gemini API</span>
+            </h2>
+            <p class="text-slate-400 text-xs mb-4">يُستخدم Gemini الذكي لتحليل كل ورقة عمل بدقة دون تأليف أو تغيير في المحتوى.</p>
+
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Gemini API Key</label>
+                <input type="password" id="api-key-input" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500">
+                <p class="text-[11px] text-slate-500 mt-1">يُحفظ المفتاح بشكل آمن ومتوافق على جهازك الشخصي فقط.</p>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="app.saveApiKey()" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition">حفظ المفتاح</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Active Quiz Modal / Screen Overlay -->
+    <div id="quiz-modal" class="fixed inset-0 z-50 bg-slate-950 flex flex-col hidden overflow-y-auto">
+        <!-- Quiz Header -->
+        <header class="border-b border-slate-800 bg-slate-900 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+            <div>
+                <span id="quiz-worksheet-title" class="text-xs font-semibold text-brand-400 block">ورقة عمل #1</span>
+                <h2 id="quiz-doc-title" class="text-lg font-bold text-white">اختبار ورقة العمل</h2>
+            </div>
+            <button onclick="app.closeQuizModal()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-2 rounded-lg border border-slate-700 transition">
+                <i class="fa-solid fa-xmark"></i>
+                <span>إغلاق الاختبار</span>
+            </button>
+        </header>
+
+        <!-- Quiz Body -->
+        <div class="flex-1 max-w-3xl w-full mx-auto px-4 py-8">
+            <div id="quiz-questions-container" class="space-y-8">
+                <!-- Questions injected here -->
+            </div>
+
+            <!-- Submit Button / Actions -->
+            <div id="quiz-actions" class="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
+                <span class="text-xs text-slate-500">تأكد من إجابة جميع الأسئلة قبل الاعتماد</span>
+                <button onclick="app.submitQuiz()" id="btn-submit-quiz" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-8 py-3 rounded-xl shadow-lg transition">
+                    إنهاء وإنهاء الدرجة
+                </button>
+            </div>
+
+            <!-- Quiz Result View (Hidden until submit) -->
+            <div id="quiz-result-card" class="hidden mt-8 glass-card border border-slate-700 p-6 rounded-2xl text-center space-y-4">
+                <div class="w-16 h-16 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center mx-auto text-2xl font-bold border border-brand-500/40">
+                    <span id="quiz-score-percent">0%</span>
+                </div>
+                <h3 class="text-xl font-bold" id="quiz-score-message">نتيجة الاختبار</h3>
+                <p class="text-slate-400 text-sm" id="quiz-score-details">أجبت على 0 من 0 أسئلة بشكل صحيح.</p>
+
+                <div class="flex justify-center gap-4 pt-4">
+                    <button onclick="app.restartCurrentQuiz()" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i>
+                        <span>إعادة الاختبار الآن</span>
+                    </button>
+                    <button onclick="app.closeQuizModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-6 py-2.5 rounded-xl text-sm border border-slate-700 transition">
+                        العودة للمجلد
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Main Application Class
+         */
+        class WorksheetStudyApp {
+            constructor() {
+                this.documents = []; // Stores all document objects and worksheets
+                this.currentDocId = null;
+                this.currentWorksheetId = null;
+                this.currentQuizAnswers = {};
+                this.selectedFile = null;
+                this.uploadTab = 'file'; // 'file' or 'text'
+                this.apiKey = localStorage.getItem('gemini_api_key') || '';
+
+                this.init();
+            }
+
+            init() {
+                // Initialize PDF.js worker
+                if (window.pdfjsLib) {
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                }
+
+                this.loadFromLocalStorage();
+                this.updateApiStatusUI();
+                this.renderDashboard();
+            }
+
+            // LocalStorage operations
+            saveToLocalStorage() {
+                localStorage.setItem('study_documents_data', JSON.stringify(this.documents));
+            }
+
+            loadFromLocalStorage() {
+                const saved = localStorage.getItem('study_documents_data');
+                if (saved) {
+                    try {
+                        this.documents = JSON.parse(saved);
+                    } catch (e) {
+                        console.error('Failed to parse local storage', e);
+                        this.documents = [];
+                    }
+                }
+
+                // If empty, populate with a sample sheet for immediate review
+                if (!this.documents || this.documents.length === 0) {
+                    this.documents = [this.getSampleDocument()];
+                    this.saveToLocalStorage();
+                }
+            }
+
+            updateApiStatusUI() {
+                const el = document.getElementById('api-status-text');
+                if (this.apiKey) {
+                    el.textContent = 'مفتاح API مفعل';
+                    el.classList.add('text-emerald-400');
+                } else {
+                    el.textContent = 'إعداد مفتاح Gemini API';
+                    el.classList.remove('text-emerald-400');
+                }
+            }
+
+            openApiKeyModal() {
+                document.getElementById('api-key-input').value = this.apiKey;
+                document.getElementById('apikey-modal').classList.remove('hidden');
+            }
+
+            closeApiKeyModal() {
+                document.getElementById('apikey-modal').classList.add('hidden');
+            }
+
+            saveApiKey() {
+                const val = document.getElementById('api-key-input').value.trim();
+                this.apiKey = val;
+                localStorage.setItem('gemini_api_key', val);
+                this.updateApiStatusUI();
+                this.closeApiKeyModal();
+            }
+
+            // UI Navigation
+            navigateToHome() {
+                this.currentDocId = null;
+                this.currentWorksheetId = null;
+                document.getElementById('breadcrumb').classList.add('hidden');
+                this.renderDashboard();
+            }
+
+            openFolder(docId) {
+                this.currentDocId = docId;
+                const doc = this.documents.find(d => d.id === docId);
+                if (!doc) return;
+
+                document.getElementById('breadcrumb').classList.remove('hidden');
+                document.getElementById('breadcrumb-current').textContent = doc.title;
+                this.renderFolderContents(doc);
+            }
+
+            renderDashboard() {
+                const container = document.getElementById('content-area');
+                
+                if (this.documents.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-16 glass-card rounded-2xl border border-slate-800">
+                            <div class="w-16 h-16 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-4">
+                                <i class="fa-solid fa-folder-open text-2xl"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-white mb-1">لا توجد مجلدات حالياً</h3>
+                            <p class="text-slate-400 text-sm mb-6 max-w-sm mx-auto">قم برفع أول ورقة عمل أو مستند دراسي للبدء في توليد الاختبارات وتتبع درجاتك.</p>
+                            <button onclick="app.openUploadModal()" class="bg-brand-600 hover:bg-brand-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition">
+                                <i class="fa-solid fa-plus ml-1"></i> إضافة مستند
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = `
+                    <div class="mb-6 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl font-bold text-white">مجلدات المستندات الدراسية</h2>
+                            <p class="text-xs text-slate-400">اختر مجلداً للوصول لأوراق العمل والاختبارات المنفصلة</p>
+                        </div>
+                        <span class="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full border border-slate-700">
+                            إجمالي المستندات: ${this.documents.length}
+                        </span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                `;
+
+                this.documents.forEach(doc => {
+                    const totalWorksheets = doc.worksheets.length;
+                    const completedWorksheets = doc.worksheets.filter(w => w.lastScore !== null).length;
+
+                    html += `
+                        <div onclick="app.openFolder('${doc.id}')" class="glass-card hover:border-brand-500/50 rounded-2xl p-5 cursor-pointer transition transform hover:-translate-y-1 shadow-lg group relative flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-start justify-between mb-4">
+                                    <div class="w-12 h-12 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center text-xl group-hover:bg-brand-500 group-hover:text-white transition">
+                                        <i class="fa-solid fa-folder"></i>
+                                    </div>
+                                    <button onclick="event.stopPropagation(); app.deleteDocument('${doc.id}')" class="text-slate-500 hover:text-rose-400 p-1 transition" title="حذف المجلد">
+                                        <i class="fa-solid fa-trash-can text-sm"></i>
+                                    </button>
+                                </div>
+                                <h3 class="font-bold text-slate-100 text-base mb-1 group-hover:text-brand-300 transition line-clamp-1">${this.escapeHtml(doc.title)}</h3>
+                                <p class="text-xs text-slate-400 mb-4">تمت الإضافة: ${doc.createdAt}</p>
+                            </div>
+
+                            <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                                <span><i class="fa-solid fa-file-lines ml-1 text-slate-500"></i> ${totalWorksheets} أوراق عمل</span>
+                                <span class="text-emerald-400 font-semibold">${completedWorksheets}/${totalWorksheets} مكتمل</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                container.innerHTML = html;
+            }
+
+            renderFolderContents(doc) {
+                const container = document.getElementById('content-area');
+
+                let html = `
+                    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 glass-card p-6 rounded-2xl border border-slate-800">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-bold bg-brand-500/20 text-brand-300 px-2.5 py-0.5 rounded-full border border-brand-500/30">مجلد مستند</span>
+                                <span class="text-xs text-slate-400">${doc.createdAt}</span>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white">${this.escapeHtml(doc.title)}</h2>
+                            <p class="text-xs text-slate-400 mt-1">يحتوي هذا المجلد على ${doc.worksheets.length} اختبارات منفصلة لكل ورقة عمل بحسب النص المرفق.</p>
+                        </div>
+                        <button onclick="app.navigateToHome()" class="self-start md:self-auto bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2 rounded-xl border border-slate-700 transition">
+                            <i class="fa-solid fa-arrow-right ml-1"></i> العودة للمجلدات
+                        </button>
+                    </div>
+
+                    <h3 class="font-bold text-lg text-white mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-brand-400"></i>
+                        <span>قائمة أوراق العمل والاختبارات</span>
+                    </h3>
+
+                    <div class="space-y-4">
+                `;
+
+                doc.worksheets.forEach((ws, idx) => {
+                    const hasScore = ws.lastScore !== null;
+                    const bestScoreText = ws.bestScore !== null ? `${ws.bestScore}%` : 'لا يوجد';
+                    const lastScoreText = ws.lastScore !== null ? `${ws.lastScore}%` : 'لم يُختبر';
+
+                    html += `
+                        <div class="glass-card rounded-xl p-5 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-slate-700 transition">
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-xl bg-slate-800 text-brand-400 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-700">
+                                    ${idx + 1}
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-slate-100 text-base mb-1">${this.escapeHtml(ws.title)}</h4>
+                                    <p class="text-xs text-slate-400 line-clamp-2">${this.escapeHtml(ws.contentPreview)}</p>
+                                    
+                                    <div class="flex items-center gap-4 mt-3 text-xs">
+                                        <span class="text-slate-400"><i class="fa-solid fa-circle-question text-slate-500 ml-1"></i> ${ws.questions.length} أسئلة</span>
+                                        <span class="${hasScore ? 'text-emerald-400 font-bold' : 'text-slate-500'}">
+                                            <i class="fa-solid fa-chart-line ml-1"></i> آخر نتيجة: ${lastScoreText}
+                                        </span>
+                                        <span class="text-amber-400 font-bold">
+                                            <i class="fa-solid fa-trophy ml-1"></i> أفضل نتيجة: ${bestScoreText}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                <button onclick="app.startQuiz('${doc.id}', '${ws.id}')" class="bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md transition flex items-center gap-2">
+                                    <i class="fa-solid fa-play"></i>
+                                    <span>${hasScore ? 'إعادة الاختبار' : 'بدء الاختبار'}</span>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                container.innerHTML = html;
+            }
+
+            openUploadModal() {
+                document.getElementById('upload-modal').classList.remove('hidden');
+            }
+
+            closeUploadModal() {
+                document.getElementById('upload-modal').classList.add('hidden');
+                this.selectedFile = null;
+                document.getElementById('selected-file-name').classList.add('hidden');
+                document.getElementById('selected-file-name').textContent = '';
+                document.getElementById('document-title').value = '';
+                document.getElementById('raw-text-input').value = '';
+            }
+
+            switchUploadTab(tab) {
+                this.uploadTab = tab;
+                const btnFile = document.getElementById('tab-btn-file');
+                const btnText = document.getElementById('tab-btn-text');
+                const contentFile = document.getElementById('tab-content-file');
+                const contentText = document.getElementById('tab-content-text');
+
+                if (tab === 'file') {
+                    btnFile.className = "px-4 py-2 text-sm font-bold border-b-2 border-brand-500 text-brand-400";
+                    btnText.className = "px-4 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200";
+                    contentFile.classList.remove('hidden');
+                    contentText.classList.add('hidden');
+                } else {
+                    btnText.className = "px-4 py-2 text-sm font-bold border-b-2 border-brand-500 text-brand-400";
+                    btnFile.className = "px-4 py-2 text-sm font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200";
+                    contentText.classList.remove('hidden');
+                    contentFile.classList.add('hidden');
+                }
+            }
+
+            handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.selectedFile = file;
+                    const nameEl = document.getElementById('selected-file-name');
+                    nameEl.textContent = `تم اختيار الملف: ${file.name}`;
+                    nameEl.classList.remove('hidden');
+
+                    if (!document.getElementById('document-title').value) {
+                        const defaultName = file.name.replace(/\.[^/.]+$/, "");
+                        document.getElementById('document-title').value = defaultName;
+                    }
+                }
+            }
+
+            async processDocumentUpload() {
+                const title = document.getElementById('document-title').value.trim() || 'مستند جديد';
+                const btn = document.getElementById('btn-process-doc');
+                
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> جاري قراءة واستخراج أوراق العمل...`;
+
+                try {
+                    let worksheetTexts = [];
+
+                    if (this.uploadTab === 'file') {
+                        if (!this.selectedFile) {
+                            alert('الرجاء اختيار ملف PDF أو ملف نصي أودخاله يدوياً');
+                            btn.disabled = false;
+                            btn.innerHTML = `<i class="fa-solid fa-microchip"></i> معالجة وتوليد الاختبارات`;
+                            return;
+                        }
+
+                        if (this.selectedFile.type === 'application/pdf') {
+                            worksheetTexts = await this.extractPdfPages(this.selectedFile);
+                        } else {
+                            const text = await this.readFileAsText(this.selectedFile);
+                            worksheetTexts = text.split('---').map(t => t.trim()).filter(t => t.length > 0);
+                        }
+                    } else {
+                        const rawText = document.getElementById('raw-text-input').value.trim();
+                        if (!rawText) {
+                            alert('الرجاء كتابة أو لصق النص قبل التوليد');
+                            btn.disabled = false;
+                            btn.innerHTML = `<i class="fa-solid fa-microchip"></i> معالجة وتوليد الاختبارات`;
+                            return;
+                        }
+                        worksheetTexts = rawText.split('---').map(t => t.trim()).filter(t => t.length > 0);
+                    }
+
+                    if (worksheetTexts.length === 0) {
+                        alert('لم يتم العثور على أي نص مفيد لتقسيم أوراق العمل.');
+                        btn.disabled = false;
+                        btn.innerHTML = `<i class="fa-solid fa-microchip"></i> معالجة وتوليد الاختبارات`;
+                        return;
+                    }
+
+                    // Build document entry
+                    const newDoc = {
+                        id: 'doc_' + Date.now(),
+                        title: title,
+                        createdAt: new Date().toLocaleDateString('ar-EG'),
+                        worksheets: []
+                    };
+
+                    btn.innerHTML = `<i class="fa-solid fa-robot fa-spin"></i> جاري توليد أسئلة الاختبار لكل ورقة عمل...`;
+
+                    for (let i = 0; i < worksheetTexts.length; i++) {
+                        const textContent = worksheetTexts[i];
+                        const wsTitle = `ورقة عمل ${i + 1}`;
+                        const questions = await this.generateQuestionsFromWorksheet(textContent);
+
+                        newDoc.worksheets.push({
+                            id: 'ws_' + Date.now() + '_' + i,
+                            title: wsTitle,
+                            textContent: textContent,
+                            contentPreview: textContent.substring(0, 120) + '...',
+                            questions: questions,
+                            lastScore: null,
+                            bestScore: null
+                        });
+                    }
+
+                    this.documents.unshift(newDoc);
+                    this.saveToLocalStorage();
+                    this.closeUploadModal();
+                    this.openFolder(newDoc.id);
+
+                } catch (err) {
+                    console.error("Error processing upload:", err);
+                    alert("حدث خطأ أثناء قراءة المستند: " + err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-microchip"></i> معالجة وتوليد الاختبارات`;
+                }
+            }
+
+            async extractPdfPages(file) {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const pagesText = [];
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageString = textContent.items.map(item => item.str).join(' ');
+                    if (pageString.trim()) {
+                        pagesText.push(pageString);
+                    }
+                }
+
+                return pagesText;
+            }
+
+            readFileAsText(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = e => reject(e);
+                    reader.readAsText(file);
+                });
+            }
+
+            async generateQuestionsFromWorksheet(textContent) {
+                // If user provided Gemini API key, use live call
+                if (this.apiKey) {
+                    try {
+                        return await this.callGeminiApiForQuestions(textContent);
+                    } catch (err) {
+                        console.warn("Gemini API error, falling back to local extractor:", err);
+                    }
+                }
+
+                // Fallback deterministic quiz generator directly based strictly on text content sentences
+                return this.generateSmartLocalQuiz(textContent);
+            }
+
+            async callGeminiApiForQuestions(textContent) {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${this.apiKey}`;
+                
+                const systemPrompt = `أنت مصمم اختبارات تعليمية دقيقة جداً. مهمتك هي إنشاء أسئلة اختيار من متعدد بناءً **فقط وحصرياً** على النص المرفق لورقة العمل. لا تضف أي معلومة خارجية من خارج النص مطلقاً. أخرج الناتج بترميز JSON صحيح حصراً.`;
+
+                const userPrompt = `قم بإنشاء 5 أسئلة اختيار من متعدد بناءً على النص التالي بأسلوب مباشر ودقيق:
+
+النص:
+"""
+${textContent}
+"""
+
+أرجع الناتج بترميز JSON يحتوي قائمة بنفس الهيكل التالي:
+[
+  {
+    "question": "نص السؤال هنا؟",
+    "options": ["الخيار الأول", "الخيار الثاني", "الخيار الثالث", "الخيار الرابع"],
+    "correctIndex": 0,
+    "explanation": "شرح مختصر مبني على الورقة"
+  }
+]`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: userPrompt }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: { responseMimeType: "application/json" }
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!jsonText) throw new Error("No payload returned");
+
+                return JSON.parse(jsonText);
+            }
+
+            generateSmartLocalQuiz(textContent) {
+                // Extracts key sentences from the text content to create direct true content quizzes
+                const cleanText = textContent.replace(/\s+/g, ' ').trim();
+                const sentences = cleanText.split(/[.؟!]/).map(s => s.trim()).filter(s => s.length > 15);
+
+                const questions = [];
+                const numQuestions = Math.min(Math.max(sentences.length, 3), 5);
+
+                for (let i = 0; i < numQuestions; i++) {
+                    const sentence = sentences[i % sentences.length] || cleanText;
+                    
+                    questions.push({
+                        question: `بناءً على ما ورد بالورقة: ما هي العبارة الصحيحة المطابقة للنص؟`,
+                        options: [
+                            sentence,
+                            `عكس المعلومة: ليس من المؤكد أن ${sentence.substring(0, 30)}...`,
+                            `معلومة غير مذكورة بصفة عامة في هذه الورقة`,
+                            `لا توجد إجابة صحيحة من الخيارات`
+                        ],
+                        correctIndex: 0,
+                        explanation: `النص المباشر في ورقة العمل: "${sentence}"`
+                    });
+                }
+
+                return questions;
+            }
+
+            startQuiz(docId, wsId) {
+                this.currentDocId = docId;
+                this.currentWorksheetId = wsId;
+                this.currentQuizAnswers = {};
+
+                const doc = this.documents.find(d => d.id === docId);
+                const ws = doc?.worksheets.find(w => w.id === wsId);
+
+                if (!ws) return;
+
+                document.getElementById('quiz-worksheet-title').textContent = `${doc.title} - ${ws.title}`;
+                document.getElementById('quiz-doc-title').textContent = ws.title;
+                
+                // Reset Results Card
+                document.getElementById('quiz-result-card').classList.add('hidden');
+                document.getElementById('quiz-actions').classList.remove('hidden');
+
+                this.renderQuizQuestions(ws.questions);
+                document.getElementById('quiz-modal').classList.remove('hidden');
+            }
+
+            renderQuizQuestions(questions) {
+                const container = document.getElementById('quiz-questions-container');
+                let html = '';
+
+                questions.forEach((q, qIdx) => {
+                    html += `
+                        <div class="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+                            <div class="flex items-start gap-3">
+                                <span class="w-7 h-7 rounded-lg bg-brand-500/20 text-brand-300 font-bold text-xs flex items-center justify-center border border-brand-500/30 shrink-0">
+                                    ${qIdx + 1}
+                                </span>
+                                <h3 class="font-bold text-slate-100 text-base leading-snug">${this.escapeHtml(q.question)}</h3>
+                            </div>
+
+                            <div class="space-y-2 mr-10">
+                    `;
+
+                    q.options.forEach((opt, optIdx) => {
+                        html += `
+                            <label class="flex items-center gap-3 p-3.5 rounded-xl border border-slate-800 bg-slate-950/40 hover:bg-slate-800/60 cursor-pointer transition text-sm">
+                                <input type="radio" name="question_${qIdx}" value="${optIdx}" onchange="app.recordQuizAnswer(${qIdx}, ${optIdx})" class="accent-brand-500 w-4 h-4">
+                                <span class="text-slate-200">${this.escapeHtml(opt)}</span>
+                            </label>
+                        `;
+                    });
+
+                    html += `
+                            </div>
+                            <div id="explanation_${qIdx}" class="mr-10 p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 hidden"></div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            }
+
+            recordQuizAnswer(qIdx, optIdx) {
+                this.currentQuizAnswers[qIdx] = optIdx;
+            }
+
+            submitQuiz() {
+                const doc = this.documents.find(d => d.id === this.currentDocId);
+                const ws = doc?.worksheets.find(w => w.id === this.currentWorksheetId);
+                if (!ws) return;
+
+                let correctCount = 0;
+                const total = ws.questions.length;
+
+                ws.questions.forEach((q, qIdx) => {
+                    const selected = this.currentQuizAnswers[qIdx];
+                    const expEl = document.getElementById(`explanation_${qIdx}`);
+
+                    if (selected === q.correctIndex) {
+                        correctCount++;
+                    }
+
+                    // Reveal explanation & feedback
+                    if (expEl) {
+                        const isCorrect = selected === q.correctIndex;
+                        expEl.classList.remove('hidden');
+                        expEl.innerHTML = `
+                            <div class="font-bold mb-1 ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}">
+                                ${isCorrect ? '<i class="fa-solid fa-circle-check"></i> إجابة صحيحة' : '<i class="fa-solid fa-circle-xmark"></i> إجابة خاطئة'}
+                            </div>
+                            <p class="text-slate-300 mb-1">${this.escapeHtml(q.explanation)}</p>
+                            <p class="text-slate-500">الإجابة الصحيحة هي: <span class="text-emerald-400 font-semibold">${this.escapeHtml(q.options[q.correctIndex])}</span></p>
+                        `;
+                    }
+                });
+
+                const percentage = Math.round((correctCount / total) * 100);
+
+                // Update scores
+                ws.lastScore = percentage;
+                if (ws.bestScore === null || percentage > ws.bestScore) {
+                    ws.bestScore = percentage;
+                }
+
+                this.saveToLocalStorage();
+
+                // Render result summary
+                document.getElementById('quiz-score-percent').textContent = `${percentage}%`;
+                document.getElementById('quiz-score-details').textContent = `أجبت على ${correctCount} من إجمالي ${total} أسئلة بشكل صحيح.`;
+                document.getElementById('quiz-result-card').classList.remove('hidden');
+                document.getElementById('quiz-actions').classList.add('hidden');
+
+                // Scroll to result card
+                document.getElementById('quiz-result-card').scrollIntoView({ behavior: 'smooth' });
+            }
+
+            restartCurrentQuiz() {
+                this.startQuiz(this.currentDocId, this.currentWorksheetId);
+            }
+
+            closeQuizModal() {
+                document.getElementById('quiz-modal').classList.add('hidden');
+                if (this.currentDocId) {
+                    const doc = this.documents.find(d => d.id === this.currentDocId);
+                    if (doc) this.renderFolderContents(doc);
+                } else {
+                    this.renderDashboard();
+                }
+            }
+
+            deleteDocument(docId) {
+                if (confirm('هل أنت تأكد من رغبتك في حذف هذا المجلد مع كافة أوراق العمل الخاصة به؟')) {
+                    this.documents = this.documents.filter(d => d.id !== docId);
+                    this.saveToLocalStorage();
+                    this.renderDashboard();
+                }
+            }
+
+            escapeHtml(str) {
+                if (!str) return '';
+                return str
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            getSampleDocument() {
+                return {
+                    id: 'sample_doc_1',
+                    title: 'ورقة عمل نموذجية - الأحياء الجزيئية',
+                    createdAt: new Date().toLocaleDateString('ar-EG'),
+                    worksheets: [
+                        {
+                            id: 'sample_ws_1',
+                            title: 'ورقة عمل 1: التركيب الخلوي للـ DNA',
+                            contentPreview: 'يتكون جزيء الحمض النووي الرايبوزي منقوص الأوكسجين (DNA) من شريطين حلزونيين يلتفان حول بعضهما...',
+                            textContent: 'يتكون جزيء الحمض النووي الرايبوزي منقوص الأوكسجين (DNA) من شريطين حلزونيين يلتفان حول بعضهما. يتألف النيوكليوتيد من ثلاثة مكونات رئيسية: مجموعة فوسفات، سكر خماسي (رايبوز منقوص الأكسجين)، وقاعدة نيتروجينية. ترتبط القواعد النيتروجينية ببعضها عبر روابط هيدروجينية، حيث يرتبط الأدنين دائماً مع الثايمين، بينما يرتبط الجوانين دائماً مع السيتوسين.',
+                            lastScore: null,
+                            bestScore: null,
+                            questions: [
+                                {
+                                    question: 'مم تتألف النيوكليوتيدة في جزيء DNA بناءً على المذكور بالورقة؟',
+                                    options: [
+                                        'مجموعة فوسفات وسكر خماسي وقاعدة نيتروجينية',
+                                        'حمض أميني وسكر سداسي وجلوكوز',
+                                        'شريطين من البروتين فقط',
+                                        'مجموعة كربوكسيل وزيت ثلاثي'
+                                    ],
+                                    correctIndex: 0,
+                                    explanation: 'ورد في النص أن النيوكليوتيد يتألف من مجموعة فوسفات، سكر خماسي، وقاعدة نيتروجينية.'
+                                },
+                                {
+                                    question: 'مع أي قاعدة نيتروجينية يرتبط الأدنين دائماً حسب النص؟',
+                                    options: ['السيتوسين', 'الثايمين', 'الجوانين', 'اليوراسيل'],
+                                    correctIndex: 1,
+                                    explanation: 'ترتبط القواعد النيتروجينية بحيث يرتبط الأدنين دائماً مع الثايمين.'
+                                }
+                            ]
+                        }
+                    ]
+                };
+            }
+        }
+
+        let app;
+        window.addEventListener('DOMContentLoaded', () => {
+            app = new WorksheetStudyApp();
+        });
+    </script>
+</body>
+</html>
